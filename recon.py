@@ -24,8 +24,8 @@ def POCS_recon(kdata,sampling_matr,phase_estimate_matr):
 
     input:
         kdata: zero-filled kspace data
-        sampling_matr: indicate the sampled entries
-        phase_estimate_matr: indicate the data for estimating phase
+        sampling_matr: indicate the sampled entries (elements 0,1)
+        phase_estimate_matr: indicate the data for estimating phase (elements 0,1)
     '''
     # recon the low-resol image, take the center k-space data
     # and estimate the phase
@@ -34,11 +34,32 @@ def POCS_recon(kdata,sampling_matr,phase_estimate_matr):
     phase_esti = np.angle(img_lowres)
 
     # iteratively project and recon the image
+    img = fft_recon(kdata) # Recon with zero-filled
     niters = 10
     for iter_i in range(niters):
-        pass
+        print('[POCS iteration = {}]'.format(iter_i))
+        # Substitute the image phase
+        img = np.abs(img)*np.exp(1j*phase_esti)
+        kdata_esti = np.fft.fft2(np.fft.fftshift(img))
 
-    return
+        # Replace the true kspace data
+        kdata_esti = kdata + kdata_esti*(1-sampling_matr)
+
+        # New recon
+        img = fft_recon(kdata_esti)
+    return img
+
+def coil_combination(imgs,coilmaps):
+    '''coil combination for the assignment
+
+    imgs: (_*_*ncoils)
+    coilmaps: (_*_*ncoils)
+    '''
+    ncoils = imgs.shape[2]
+    img = 0
+    for coil_itr in range(ncoils):
+        img = img + np.conj(coilmaps[:,:,coil_itr])*imgs[:,:,coil_itr]
+    return img
 
 def SENSE_recon(kdatas,coilmaps):
     '''SENSE reconstruction method
@@ -48,8 +69,9 @@ def SENSE_recon(kdatas,coilmaps):
 
 def plot_img(x,title=None,picname='xxx.png',savefig=False):
     fig,ax = plt.subplots()
-    x = np.transpose(x)
-    ax.imshow(x,cmap='gray')
+    # x = np.transpose(x)
+    im = ax.imshow(x,cmap='gray')
+    fig.colorbar(im)
     if title!=None:
         ax.set_title(title)
     if savefig:
