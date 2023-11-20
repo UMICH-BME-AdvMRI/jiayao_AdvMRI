@@ -10,7 +10,7 @@ def fft_recon(kdata):
 def fft_recon_multicoil(kdata):
     '''direct Fourier reconstruction, considering multiple coils
     
-    kdata: (nx*ny*ncoils)
+    kdata: (_*_*ncoils)
     '''
     ncoils = kdata.shape[2]
     imgs = np.zeros_like(kdata)
@@ -61,10 +61,40 @@ def coil_combination(imgs,coilmaps):
         img = img + np.conj(coilmaps[:,:,coil_itr])*imgs[:,:,coil_itr]
     return img
 
-def SENSE_recon(kdatas,coilmaps):
+def SENSE_recon(kdatas,coilmaps,R:int):
     '''SENSE reconstruction method
+
+    kdatas: (ny*nx*ncoils)
+    R: acceleration factor
     '''
-    return
+    print('[SNESE recon]')
+    # assume the acceleration is in the 1st dimension
+    # print(kdatas.shape)
+    ny,nx,ncoils = kdatas.shape
+    imgs_alised = fft_recon_multicoil(kdatas)
+    for coil_itr in range(ncoils):
+        imgs_alised[:,:,coil_itr] = np.fft.fftshift(imgs_alised[:,:,coil_itr],axes=0)
+    # print(imgs_alised.shape)
+    img_unalised = np.zeros((R,ny,nx),dtype=imgs_alised.dtype)
+    # print(img_unalised.shape)
+
+    # Recon images pixel-by-pixel
+    for y in range(ny):
+        for x in range(nx):
+            px_alised = imgs_alised[y,x,:]
+            C = np.zeros((ncoils,R),dtype=imgs_alised.dtype)
+            for r in range(R):
+                loc_in_coil = (y+r*ny)%(R*ny)
+                C[:,r] = coilmaps[loc_in_coil,x,:]
+            invC = np.linalg.pinv(C)
+            px_unalised = np.matmul(invC,px_alised)
+            img_unalised[:,y,x] = px_unalised
+
+    # Compose the full FOV images
+    img = img_unalised[0]
+    for k in range(R-1):
+        img = np.vstack((img,img_unalised[k+1]))
+    return img
 
 
 def plot_img(x,title=None,picname='xxx.png',savefig=False):
@@ -96,6 +126,7 @@ def plot_imgs(x,title=None,picname='xxx.png',savefig=False):
     for ax in axs.flat:
         # ax.set_title(f'markevery={markevery}')
         ax.imshow(x[:,:,img_itr],cmap='gray')
+        ax.set_title('coil {}'.format(img_itr+1))
         img_itr = img_itr + 1
         if img_itr == nimgs:
             break
