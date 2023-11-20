@@ -7,7 +7,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from mritools import Phy
+import Phy
 
 
 def problem_1():
